@@ -1,0 +1,335 @@
+<style>
+    .dot {
+        position: absolute;
+        width: 15px;
+        height: 15px;
+        background-color: grey;
+        transform: translate(-50%, -50%);
+    }
+    #canvas {
+        display: inline-block;
+        width: 200px;
+        height: 200px;
+    } 
+    #train {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: white;
+        transform: translate(-50%, -50%);
+        background-image: url('taxi.png');
+        background-position: center;
+        background-size: 70%;
+        
+        background-repeat: no-repeat;
+    }
+    .stop {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        background-color: red;
+        transform: translate(-50%, -50%);
+        background-image: url('stop.png');
+        background-position: center;
+        background-size: contain;
+    }
+     .fuel-stop {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        background-color: green;
+        
+        transform: translate(-50%, -50%);
+        background-image: url('fuel.png');
+        background-position: center;
+        background-size: contain;
+    }
+</style>
+
+<div id="canvas"></div>
+
+<button onclick="startTrain()">Start</button>
+<button onclick="stopTrain()">Stop</button>
+<button onclick="forward()">Forward</button>
+<button onclick="reverse()">Reverse</button>
+<div id="fuel"></div>
+<div id="money"></div>
+
+<script>
+    class Position {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+    class Train {
+        constructor(position, direction, speed, trackId, fuel, fuelConsumption, fuelMax, money, passengers) {
+            this.position = position;
+            this.direction = direction;
+            this.speed = speed;
+            this.trackId = trackId;
+            this.fuel = fuel;
+            this.fuelConsumption = fuelConsumption;
+            this.fuelMax = fuelMax;
+            this.money = money;
+            this.passengers = passengers;
+        }
+    }
+    class Track {
+        constructor(position) {
+            this.position = position;
+        }
+    }
+    class Stop {
+        constructor(position, trackId) {
+            this.position = position;
+            this.trackId = trackId;
+        }
+        
+    }
+    class FuelStop {
+        constructor(position, trackId, cost) {
+            this.position = position;
+            this.trackId = trackId;
+            this.cost = cost;
+        }
+    }
+    class Passenger {
+        constructor(route) {
+            this.route = route;
+        }
+    }
+    class Route {
+        constructor(pickupPoint, dropoffPoint, fee) {
+            this.pickupPoint = pickupPoint;
+            this.dropoffPoint = dropoffPoint;
+            this.fee = fee;
+        }
+    }
+
+    
+    let track = [];
+    let trackOrigin = new Position(100, 100);
+    let gridSize = 10;
+    let trackWidth = 100 * gridSize;
+    let trackHeight = 50 * gridSize;
+    
+
+    //create track top
+    for (let i = 0; i < trackWidth; i+=gridSize) {
+        let position = new Position(i + trackOrigin.x, trackOrigin.y );
+        track.push(new Track(position));
+    }
+
+    //create track right
+    for (let i = 0; i < trackHeight; i+=gridSize) {
+        let position = new Position(trackOrigin.x + trackWidth, i + trackOrigin.y)
+        track.push(new Track(position));
+    }
+
+    //create track bottom
+    for (let i = trackWidth -1 ; i >=0 ; i-=gridSize) {
+        let position = new Position(i + trackOrigin.x, trackOrigin.y + trackHeight);
+        track.push(new Track(position));
+    }
+
+    //create track left
+    for (let i = trackHeight - 1; i >= 0; i-=gridSize) {
+        let position = new Position(trackOrigin.x, i + trackOrigin.y);
+        track.push(new Track(position));
+    }
+
+    const parentDiv = document.getElementById('canvas');
+
+    //draw tack
+    for( let i=0; i < track.length; i++) {
+        const parentDiv = document.getElementById('canvas');
+        const childDiv = document.createElement('div');
+        childDiv.id = 'train#' + i.toString();
+        childDiv.className ='dot';
+        childDiv.style.top = track[i].position.y;
+        childDiv.style.left = track[i].position.x;
+        parentDiv.appendChild(childDiv);
+    }
+
+
+    //create stop
+    let stops = [];
+    stops.push(new Stop(new Position(track[50].position.x, track[50].position.y), 50));
+    stops.push(new Stop(new Position(track[125].position.x, track[125].position.y), 125));
+
+    //create fuel stop 
+    fuelStops = [];
+    fuelStops.push(new FuelStop(new Position(track[225].position.x, track[225].position.y), 225, 5));
+
+     //draw fuel stop
+    fuelStops.forEach((stop, i) => {
+        const stopDiv = document.createElement('div');
+        stopDiv.id ='fuel-stop#' + i.toString();
+        stopDiv.style.top = stop.position.y
+        stopDiv.style.left = stop.position.x;  
+        stopDiv.className="fuel-stop";
+        parentDiv.appendChild(stopDiv);
+
+    })
+
+    //draw stop
+    stops.forEach((stop, i) => {
+        const stopDiv = document.createElement('div');
+        stopDiv.id ='stop#' + i.toString();
+        stopDiv.style.top = stop.position.y
+        stopDiv.style.left = stop.position.x;  
+        stopDiv.className="stop";
+        parentDiv.appendChild(stopDiv);
+
+    })
+    
+    //create train
+    let train = new Train(new Position(trackOrigin.x, trackOrigin.y), 'right', 1, 1, 300, 1, 800, 5000, []);
+
+    //draw train
+    const childDiv = document.createElement('div');
+    childDiv.id ='train';
+    childDiv.style.top = train.position.y
+    childDiv.style.left = train.position.x;
+    parentDiv.appendChild(childDiv);
+  
+
+    //create passenger
+    passengers = []
+    let route = new Route(stops[0].position, stops[1].position, 1000);
+    passengers.push(new Passenger(route));
+
+    //train move logic
+    let isStopped = true;
+    function stopTrain() {
+        isStopped = true;
+    }
+    function startTrain() {
+        isStopped = false;
+    }
+
+    function toggleStopStart() {
+         if(isStopped) {
+                startTrain();
+            }
+            else {
+                stopTrain();
+            }
+    }
+    function forward() {
+        train.speed = Math.abs(train.speed) 
+    }
+    function reverse () {
+        train.speed = Math.abs(train.speed) * (-1)
+    }
+    function move(){
+
+        if (isStopped) return;
+        
+        //cant move if no fuel
+        if (train.fuel <= 0) {
+            return;
+        }
+
+        train.trackId += train.speed;
+
+        //revert to start if past end going forward
+        if(train.trackId >= track.length) {
+            train.trackId = track.length - train.trackId
+        }
+
+        //revert to end if past beginning going backward
+        if(train.trackId < 0) {
+            train.trackId = track.length + train.trackId
+        }
+
+        //stop logic
+        stops.forEach((stop) => {
+            if(train.position.x == stop.position.x && train.position.y == stop.position.y) {
+                stopTrain();
+            }
+        });
+
+        //pickup passengers
+        passengers.forEach((passanger, index) => {
+            if(train.position.x == passanger.route.pickupPoint.x && train.position.y == passanger.route.pickupPoint.y) {
+                if(window.confirm("Would you like to take a passanger for " + passanger.route.fee.toString())) {
+                    train.passengers.push(passanger);
+                    passengers.splice(index, 1);
+                }
+            }
+        });
+
+        //dropoff passengers
+        train.passengers.forEach((passanger, index) => {
+            if(train.position.x == passanger.route.dropoffPoint.x && train.position.y == passanger.route.dropoffPoint.y) {
+                train.money += passanger.route.fee;
+                train.passengers.splice(index, 1);
+                alert("Passenger dropped off. " +  passanger.route.fee.toString() + " earned.");
+                
+            }
+        });
+        
+        //fuel logic
+        train.fuel -= train.fuelConsumption;
+        fuelStops.forEach((stop) => {
+            if(train.position.x == stop.position.x && train.position.y == stop.position.y) {
+                
+                stopTrain();
+                
+                const additionalFuel = train.fuelMax - train.fuel;
+                cost = stop.cost * additionalFuel;
+
+                if(cost > train.money) {
+                    alert('You do not have enough to fill up. You have ' + train.money.toString() + " , you need " + cost.toString() + ".")
+
+                } 
+                else if(window.confirm("Would you like to fill up for " + cost.toString() + " you have " + train.money.toString() + " ?")) {
+                    train.fuel = train.fuelMax;
+                    train.money -= cost;
+                }
+            }
+        });
+
+        //draw fuel
+        const fuelDiv = document.getElementById('fuel');
+        fuelDiv.textContent = "Fuel: " + train.fuel.toString();
+
+        //draw money
+        const moneylDiv = document.getElementById('money');
+        money.textContent = "money: " + train.money.toString();
+        
+
+        train.position.x = track[train.trackId].position.x;
+        train.position.y = track[train.trackId].position.y;
+
+        const parentDiv = document.getElementById('train');
+        parentDiv.style.top = train.position.y
+        parentDiv.style.left = train.position.x;
+    }
+
+    //game loop 
+    function myTimedEvent() {
+        move()
+    }
+    const intervalId = setInterval(myTimedEvent, 20);    // Call the function every 1000 milliseconds (1 second)
+
+    document.addEventListener('keyup', function(event) {
+        if(event.key == 'ArrowRight' || event.key == 'd') {
+            forward();
+        }
+
+        if(event.key == 'ArrowLeft' || event.key == 'a') {
+            reverse();
+        } 
+
+        if(event.key == ' ') {
+           toggleStopStart();
+        }
+
+    });
+    
+</script>
+
